@@ -16,17 +16,25 @@ remove_assisted_installer_namespace: false
 # Deploy openshift-gitops-operator
 setup_openshift_gitops: false
 gitops_channel: stable
+gitops_catalogsource: redhat-operators
 
-# Minio deployment is an object storage pod for use with ACM
-setup_minio: false
-minio_image_tag: RELEASE.2025-09-07T16-13-09Z
-minio_pv_storageclass: localstorage2-sc
+# Local Storage Operator (LSO) catalog source
+lso_catalogsource: redhat-operators
+
+# RustFS deployment is an S3-compatible object storage pod for use with ACM
+# (replaces the archived MinIO project)
+setup_object_store: false
+object_store_image_tag: 1.0.0-rc.6
+object_store_pv_storageclass: localstorage2-sc
+
+# Install Local Storage Operator (LSO) and create LocalVolume resources
+setup_lso: false
 
 # setup metal3
 sno_metal3: false
 
-# Apply the cluster-monitoring-config that uses the localstorage class name created
-# by controlplane_localstorage_configuration
+# Apply the cluster-monitoring-config that uses the localstorage class name
+# created by LSO (requires setup_lso: true)
 apply_cluster_monitoring_config: false
 
 # Prometheus storage settings
@@ -37,8 +45,23 @@ prometheus_storage_size: 50Gi
 # DU Profile
 du_profile: false
 
-# Performance-addon-operator and du profile vars
-install_performance_addon_operator: false
+# DU profile vars
 hugepages_count: 16
 node: 0
 isolated_cpus: 2-47,50-95
+
+# Custom CatalogSources to apply post-install
+# Each entry creates a CatalogSource resource in openshift-marketplace
+# custom_catalogsources:
+# - name: my-custom-catalog
+#   image: quay.io/my-org/my-operator-index:v4.21
+#   displayName: My Custom Catalog
+#   publisher: My Org
+custom_catalogsources: []
+
+# IDMS Configurations for Pre-GA sources
+idms_prega_configuration: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/catalogsources/prega-idms.yaml"
+
+# Additional labels to apply to all nodes post-install (list of key=value or key= strings)
+post_install_node_labels:
+- jetlag=true

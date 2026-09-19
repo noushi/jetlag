@@ -3,7 +3,7 @@
 ################################################################################
 # Lab & cluster infrastructure vars
 ################################################################################
-# Which lab to be deployed into (Ex scalelab)
+# Which lab to be deployed into (Ex scalelab, performancelab)
 lab:
 # Which cloud in the lab environment (Ex cloud42)
 lab_cloud:
@@ -18,10 +18,10 @@ worker_node_count:
 ocp_build: "ga"
 
 # ocp_version is used in conjunction with ocp_build
-# For "ga" builds, examples are "latest-4.17", "latest-4.16", "4.17.17" or "4.16.35"
-# For "dev" builds, examples are "candidate-4.17", "candidate-4.16" or "latest"
+# For "ga" builds, examples are "latest-4.22", "latest-4.21", "4.22.1" or "4.21.7"
+# For "dev" builds, examples are "candidate-4.22", "candidate-4.21" or "latest"
 # For "ci" builds, an example is "4.19.0-0.nightly-2025-02-25-035256"
-ocp_version: "latest-4.20"
+ocp_version: "latest-4.22"
 
 # Set to true ONLY if you have a public routable vlan in your scalelab or performancelab cloud.
 # Autoconfigures cluster_name, base_dns_name, controlplane_network_interface_idx, controlplane_network,
@@ -39,7 +39,7 @@ sno_use_lab_dhcp: false
 # Enables FIPs security standard
 enable_fips: false
 
-#Enables the TechPreviewNoUpgrade feature set
+# Enables the TechPreviewNoUpgrade feature set
 enable_techpreview: false
 
 # Enables Operators CNV and LSO install at deployment timeframe (GA releases only)
@@ -47,7 +47,7 @@ enable_cnv_install: false
 
 ssh_private_key_file: ~/.ssh/id_rsa
 ssh_public_key_file: ~/.ssh/id_rsa.pub
-# Place your pull-secret.txt in the base directory of the cloned jetlag repo, Example:
+# Place your pull-secret.txt in the base directory of the cloned Jetlag repo, Example:
 # [root@<bastion> jetlag]# ls pull-secret.txt
 pull_secret: "{{ lookup('file', '../pull-secret.txt') }}"
 
@@ -88,6 +88,13 @@ setup_bastion_proxy: false
 # For more configuration options, see ansible/roles/hv-metrics-server/defaults/main.yaml
 # Do not override the role, just put override below
 setup_hv_metrics: false
+
+# Set to a full device path (e.g. /dev/sdb, /dev/nvme0n1,
+# /dev/disk/by-path/pci-0000:18:00.0-scsi-0:2:1:0) to partition, format as XFS,
+# and mount a dedicated disk at /opt/jetlag for all bastion service data (http,
+# registry, object-store, gogs, assisted-installer, hv-metrics).
+# Empty string (default) disables disk setup; data remains on root filesystem.
+bastion_data_disk: ""
 
 ################################################################################
 # OCP node vars
@@ -187,3 +194,7 @@ bond_vlan_id: 10
 # Extra vars
 ################################################################################
 # Append override vars below
+
+# Pre-GA content section
+use_prega_content: false
+# prega_idms_link: ""

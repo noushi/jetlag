@@ -16,6 +16,7 @@
   - ocp-release
   - bastion-install
   - bastion-network
+  - bastion-data-disk
   - role: bastion-dnsmasq
     when: not setup_coredns
   - role: bastion-coredns
@@ -41,3 +42,5 @@
     when: use_bastion_registry or setup_bastion_proxy | default(false)
   - role: hv-metrics-server
     when: setup_hv_metrics | default(false) | bool
+  - role: bastion-object-store
+    when: setup_bastion_object_store | default(false)

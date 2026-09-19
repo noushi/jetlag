@@ -8,10 +8,11 @@
   loop:
   - "{{ bastion_cluster_config_dir }}"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}"
+  - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/catalogsources"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/gitops"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/metal3"
-  - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/minio"
+  - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/object-store"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/openshift-monitoring"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/performance-profile"
   - "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/tunedPerformancePatch"
@@ -31,16 +32,17 @@
 - name: Wait until cluster is stable
   shell: |
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc adm wait-for-stable-cluster --minimum-stable-period={{ minimum_stable_period }} --timeout={{ wait_until_cluster_stable_timeout }}
-  when: wait_until_cluster_stable
+  when: wait_until_cluster_stable | bool
 
 - name: Remove assisted-installer namespace
   shell: |
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc delete ns assisted-installer
   when: remove_assisted_installer_namespace
 
-- name: Apply a label to the SNO node
+- name: Apply post-install labels to SNO node
   shell: |
-    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc label no --all --overwrite jetlag=true
+    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc label no --all --overwrite {{ item }}
+  loop: "{{ post_install_node_labels }}"
 
 - name: Place templated configuration items
   template:
@@ -53,16 +55,18 @@
     dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/gitops/openshift-gitops-operator.yml"
   - src: localstorage.yml.j2
     dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localstorage.yml"
-  - src: localvolume.yml.j2
-    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume.yml"
-  - src: localvolume2.yml.j2
-    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume2.yml"
-  - src: minio.yml.j2
-    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/minio/minio.yml"
+  - src: localvolume-lvm.yml.j2
+    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume-lvm.yml"
+  - src: localvolume-disk.yml.j2
+    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume-disk.yml"
+  - src: object-store.yml.j2
+    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/object-store/object-store.yml"
   - src: metal3.yml
     dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/metal3/metal3.yml"
   - src: openshift-marketplace-ns.yaml
     dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/openshift-marketplace-ns.yaml"
+  - src: catalogsource.yml.j2
+    dest: "{{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/catalogsources/catalogsource.yml"
 
 - name: Add kube-burner sa
   shell: |
@@ -74,10 +78,31 @@
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc adm policy add-cluster-role-to-user -z kubeburner cluster-admin
   when: setup_kube_burner_sa | default(true) | bool
 
+- name: Pre-GA block
+  when:
+  - use_prega_content | default(false) | bool
+  - prega_idms_link is defined
+  - prega_idms_link | length > 0
+  block:
+  - name: Delete previous IDMS configuration
+    ansible.builtin.file:
+      path: "{{ idms_prega_configuration }}"
+      state: absent
+
+  - name: Download IDMS configuration
+    ansible.builtin.uri:
+      url: "{{ prega_idms_link }}"
+      dest: "{{ idms_prega_configuration }}"
+      mode: '0644'
+    register: idms_download_result
+    until: idms_download_result is not failed
+    retries: 3
+    delay: 5
+
 - name: Disable default OperatorHub sources on bastion registry clusters
   shell: |
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc patch OperatorHub cluster --type json -p '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
-  when: use_bastion_registry | default(false)
+  when: (use_bastion_registry | default(false)) or (use_prega_content | default(false))
 
 - name: Create openshift-marketplace namespace for ocp 4.15 and higher releases DUs
   shell: |
@@ -87,9 +112,11 @@
   - openshift_version is version('4.15', ">=")
 
 - name: Apply oc mirror ImageDigestMirrorSet on bastion registry clusters
+  vars:
+    idms_configuration: "{{ use_prega_content | default(false) | ternary(idms_prega_configuration, idms_bastion_configuration) }}"
   shell: |
-    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ sync_path }}/operators/{{ operator_index_name }}/working-dir/cluster-resources/idms-oc-mirror.yaml
-  when: use_bastion_registry | default(false)
+    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ idms_configuration }}
+  when: (use_bastion_registry | default(false) | bool) or (use_prega_content | default(false) | bool)
 
 - name: Apply ImageTagMirrorSet on bastion registry clusters
   shell: |
@@ -109,8 +136,13 @@
 
 - name: Apply oc mirror catalogSource on bastion registry clusters
   shell: |
-    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ sync_path }}/operators/{{ operator_index_name }}/working-dir/cluster-resources/{{ generated_operator_index_name_tag }}.yaml
+    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ catalogsource_bastion_configuration }}
   when: use_bastion_registry | default(false)
+
+- name: Apply custom CatalogSources
+  shell: |
+    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/catalogsources/catalogsource.yml
+  when: custom_catalogsources | length > 0
 
 # Part of DU Profile (Not completely in du_profile_tasks.yml)
 - name: Annotate catalogSource.yaml to pin opm to reserved cores for DUs
@@ -123,43 +155,45 @@
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/gitops/openshift-gitops-operator.yml
   when: setup_openshift_gitops
 
-- name: Setup nodes localstorage
-  when: controlplane_localstorage_configuration
+- name: Setup Local Storage Operator (LSO)
+  when: setup_lso | bool
   block:
   - name: Install local-storage operator
     shell:
       KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localstorage.yml
 
   # The localvolume resource will not be instantly available, thus retry for around 15 minutes
-  - name: Create localvolume resource
+  - name: Create localvolume-lvm resource
     shell:
-      KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume.yml
+      KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume-lvm.yml
     register: lv_result
     until: not lv_result.failed
     retries: 450
     delay: 2
+    when: controlplane_localstorage_lvm_devices | length > 0
 
-  - name: Create localvolume2 resource
+  - name: Create localvolume-disk resource
     shell:
-      KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume2.yml
+      KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/localstorage/localvolume-disk.yml
     register: lv_result
     until: not lv_result.failed
     retries: 60
     delay: 2
-    when: localvolume2_configuration
+    when: controlplane_localstorage_disk_devices | length > 0
+
 
 - name: Setup Metal3
   when: sno_metal3 | bool
   shell: |
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/metal3/metal3.yml
 
-- name: Setup Minio
-  when: setup_minio | bool
+- name: Setup object store
+  when: setup_object_store | bool
   shell: |
-    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/minio/minio.yml
+    KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/object-store/object-store.yml
 
 - name: Apply OpenShift-Monitoring configuration options
-  when: apply_cluster_monitoring_config and controlplane_localstorage_configuration
+  when: (apply_cluster_monitoring_config | bool) and (setup_lso | bool)
   shell:
     KUBECONFIG={{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/kubeconfig oc apply -f {{ bastion_cluster_config_dir }}/{{ groups['sno'][0] }}/openshift-monitoring/cluster-monitoring-config.yml
 

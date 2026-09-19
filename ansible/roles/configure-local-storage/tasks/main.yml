@@ -20,11 +20,11 @@
     return_content: true
     body: { "config": "{{ lookup('template', 'controlplane.ign.j2') | to_json }}" }
   with_items: "{{ get_hosts.json|selectattr('role', 'eq', 'master') | list }}"
-  when: (controlplane_etcd_on_nvme or controlplane_localstorage_configuration)
+  when: controlplane_etcd_on_nvme or controlplane_localstorage_lvm_devices | length > 0 or controlplane_localstorage_disk_devices | length > 0
 
 - name: Apply worker host ignition config overrides
   uri:
-    url: "http://{{ assisted_installer_host }}:{{ assisted_installer_port }}/api/assisted-install/v2/infra-envs/{{ ai_infraenv_id }}/hosts//{{ item.id }}/ignition"
+    url: "http://{{ assisted_installer_host }}:{{ assisted_installer_port }}/api/assisted-install/v2/infra-envs/{{ ai_infraenv_id }}/hosts/{{ item.id }}/ignition"
     method: PATCH
     body_format: json
     status_code: [201]
@@ -32,5 +32,5 @@
     body: { "config": "{{ lookup('template', 'worker.ign.j2') | to_json }}" }
   with_items: "{{ get_hosts.json|selectattr('role', 'eq', 'worker') | list }}"
   when:
-  - worker_localstorage_configuration
+  - worker_localstorage_lvm_devices | length > 0 or worker_localstorage_disk_devices | length > 0
   - cluster_type != "sno"

@@ -1,21 +1,23 @@
 ---
 # configure-local-storage default vars
 
-# controlplane_* configures local storage on SNO, 3-Node Compact MNO, and
-# Control-plane nodes on a "standard" multi-node deployment with workers
+# controlplane_* configures disk wiping/partitioning on SNO, 3-Node Compact MNO,
+# and Control-plane nodes on a "standard" multi-node deployment with workers.
+# Populating device lists triggers Ignition-based disk preparation at boot.
 controlplane_etcd_on_nvme: false
 controlplane_nvme_device: /dev/nvme0n1
-controlplane_localstorage_configuration: false
-controlplane_localstorage_device: /dev/sdb
+controlplane_localstorage_lvm_devices: []
+controlplane_localstorage_disk_devices: []
 controlplane_localstorage_lv_count: 10
 controlplane_localstorage_lv_size: 100G
 
-# worker_* configures local storage on worker nodes on a "standard"
-# multi-node deployment with workers
-worker_localstorage_configuration: false
-worker_localstorage_device: /dev/nvme0n1
+# worker_* configures disk wiping/partitioning on worker nodes on a
+# "standard" multi-node deployment with workers
+worker_localstorage_lvm_devices: []
+worker_localstorage_disk_devices: []
 worker_localstorage_lv_count: 10
 worker_localstorage_lv_size: 100G
 
-localvolume2_configuration: false
-localvolume2_device: /dev/sdc
+localstorage_lvm_volume_mode: Filesystem
+localstorage_disk_volume_mode: Block
+localstorage_disk_force_wipe: true

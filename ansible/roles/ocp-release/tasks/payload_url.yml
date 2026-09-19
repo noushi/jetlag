@@ -11,10 +11,10 @@
     dest: "/root/.docker/config.json"
 
 # Set bastion rhel version for ocp 4.15 and newer
-- name: RHEL version rhel9 check
+- name: RHEL version rhel9+ check
   set_fact:
     bastion_rhel_version: "rhel9"
-  when: ansible_facts['distribution_major_version'] is version('9', '==')
+  when: ansible_facts['distribution_major_version'] is version('9', '>=')
 
 - name: RHEL version rhel8 check
   set_fact:
@@ -29,7 +29,7 @@
 - name: Get latest stable Openshift client
   shell: curl -L https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux-amd64-{{ bastion_rhel_version}}.tar.gz | tar xz -C /usr/local/bin/ oc
   when: not oc_exists.stat.exists
-  
+
 - name: Get release info
   command: oc adm release info {{ payload_url }}
   register: result

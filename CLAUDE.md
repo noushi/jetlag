@@ -75,6 +75,12 @@ ansible-playbook ansible/hv-vm-replace.yml
 
 # Sync OpenShift releases
 ansible-playbook ansible/sync-ocp-release.yml
+
+# Deploy RustFS object storage on the bastion (set setup_bastion_object_store: true in all.yml first)
+ansible-playbook -i ansible/inventory/cloud99.local ansible/bastion-object-store.yml
+
+# Clean all RustFS data between cluster deployments (wipes data, recreates empty buckets)
+ansible-playbook -i ansible/inventory/cloud99.local ansible/bastion-object-store-clean.yml
 ```
 
 ## Project Architecture
@@ -179,6 +185,18 @@ When encountering issues with Jetlag deployments, consult these comprehensive do
   - Bastion configuration and recovery procedures
   - BMC/iDRAC reset procedures
   - Virtual media and discovery issues
+
+- **[docs/local-storage.md](docs/local-storage.md)**: Local Storage Operator (LSO) configuration covering:
+  - Variables for LVM and disk configuration
+  - How Ignition handles disk wiping, partitioning, and LVM setup at boot
+  - LocalVolume resources (`localvolume-lvm`, `localvolume-disk`) and their storage classes
+  - Configuration examples for common scenarios
+
+- **[docs/bastion-object-store.md](docs/bastion-object-store.md)**: RustFS object storage setup and usage covering:
+  - Variables and configuration options
+  - Deploying RustFS via `setup-bastion.yml` or standalone `bastion-object-store.yml`
+  - Accessing the S3 API (port 9000) and web console (port 9001)
+  - Cleaning RustFS data between cluster deployments with `bastion-object-store-clean.yml`
 
 - **[docs/tips-and-vars.md](docs/tips-and-vars.md)**: Advanced configuration guidance including:
   - Network interface configuration and overrides

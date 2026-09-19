@@ -8,13 +8,13 @@ ssh_public_key_file: ~/.ssh/id_rsa.pub
 
 install_tc: true
 
-# Setup and use coredns instead of dnsmasq
-setup_coredns: false
+# Coredns is default DNS (False uses dnsmasq, dnsmasq to be removed in future)
+setup_coredns: true
 
 # Enables using DHCP instead of relying on static network configuration for VMs
 setup_hv_vm_dhcp: false
 
-hv_vm_generate_manifests: true
+hv_vm_generate_manifests: false
 
 # Types: sno, compact, standard, mixed, jumbo
 # sno = 1 node per cluster
@@ -71,9 +71,9 @@ hugepage_count: 64
 
 # Additional kernel parameters for performance tuning
 additional_kernel_params:
-  - "intel_iommu=on"
-  - "iommu=pt"
-  - "isolcpus=2-15,18-31"
+- "intel_iommu=on"
+- "iommu=pt"
+- "isolcpus=2-15,18-31"
 
 # Enable hugepages for VMs
 vm_hugepages: false

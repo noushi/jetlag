@@ -25,10 +25,10 @@
     state: directory
 
 # Set bastion rhel version for ocp 4.15 and newer
-- name: RHEL version rhel9 check
+- name: RHEL version rhel9+ check
   set_fact:
     bastion_rhel_version: "rhel9"
-  when: ansible_facts['distribution_major_version'] is version('9', '==')
+  when: ansible_facts['distribution_major_version'] is version('9', '>=')
 
 - name: RHEL version rhel8 check
   set_fact:
@@ -92,7 +92,7 @@
 
 - name: Identify current shell
   set_fact:
-     current_shell: "{{ lookup('env','SHELL') }}"
+    current_shell: "{{ lookup('env','SHELL') }}"
 
 - name: Enable bash completion for oc
   include_tasks: bash-completion.yml
@@ -152,10 +152,10 @@
   loop:
   - dest: "{{ ocp_version_path }}/assisted_service_openshift_version-bastion.json"
     content: |
-      {"{{ openshift_version }}":{"display_name": "{{ ocp_version_display_name.stdout }}", "release_version": "{{ ocp_version_display_name.stdout }}", "release_image": "{{ registry_host }}:{{ registry_port }}/{{ registry_repo }}:{{ ocp_release_version }}-x86_64", "rhcos_image": "http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_disk_location.stdout | basename }}", "rhcos_rootfs": "http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_rootfs_location.stdout | basename }}", "rhcos_version": "{{ ocp_version_rhcos_version.stdout }}", "support_level": "beta"} }
+      {"{{ openshift_version }}":{"display_name": "{{ ocp_version_display_name.stdout }}", "release_version": "{{ ocp_version_display_name.stdout }}", "release_image": "{{ registry_host }}:{{ registry_port }}/{{ use_oc_mirror_v2 | default(true) | bool | ternary('openshift/release-images', registry_repo) }}:{{ ocp_release_version }}-x86_64", "rhcos_image": "http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_disk_location.stdout | basename }}", "rhcos_rootfs": "http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_rootfs_location.stdout | basename }}", "rhcos_version": "{{ ocp_version_rhcos_version.stdout }}", "support_level": "beta"} }
   - dest: "{{ ocp_version_path }}/assisted_service_os_images-bastion.json"
     content: |
       [{"openshift_version":"{{ openshift_version }}","cpu_architecture":"x86_64","url":"http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_disk_location.stdout | basename }}","rootfs_url":"http://{{ http_store_host }}:{{ http_store_port }}/{{ ocp_version_display_name.stdout }}/{{ ocp_version_rootfs_location.stdout | basename }}","version":"{{ ocp_version_rhcos_version.stdout }}"}]
   - dest: "{{ ocp_version_path }}/assisted_service_release_images-bastion.json"
     content: |
-      [{"openshift_version":"{{ openshift_version }}","cpu_architecture":"x86_64","url":"{{ registry_host }}:{{ registry_port }}/{{ registry_repo }}:{{ ocp_release_version }}-x86_64","version":"{{ ocp_version_display_name.stdout }}"}]
+      [{"openshift_version":"{{ openshift_version }}","cpu_architecture":"x86_64","url":"{{ registry_host }}:{{ registry_port }}/{{ use_oc_mirror_v2 | default(true) | bool | ternary('openshift/release-images', registry_repo) }}:{{ ocp_release_version }}-x86_64","version":"{{ ocp_version_display_name.stdout }}"}]

@@ -12,6 +12,7 @@ _**Table of Contents**_
   - [Failed on Wait for cluster to be ready](#failed-on-wait-for-cluster-to-be-ready)
   - [Failed on Adjust by-path selected install disk](#failed-on-adjust-by-path-selected-install-disk)
   - [Failed on Insert Virtual Media](#failed-on-insert-virtual-media)
+  - [Discovery ISO password for debugging](#discovery-iso-password-for-debugging)
 - [Bastion](#bastion)
   - [Accessing services](#accessing-services)
   - [Clean all container services / podman pods](#clean-all-container-services--podman-pods)
@@ -20,6 +21,7 @@ _**Table of Contents**_
   - [Incorrect bastion controlplane interface](#incorrect-bastion-controlplane-interface)
   - [Changed controlplane network on bastion](#changed-controlplane-network-on-bastion)
   - [Root disk too small](#root-disk-too-small)
+  - [Object Storage](#object-storage)
 - [Generic Hardware](#generic-hardware)
   - [Minimum Firmware Versions](#minimum-firmware-versions)
 - [Dell](#dell)
@@ -274,6 +276,16 @@ racadm>>set iDRAC.VirtualMedia.Attached Attached
 Object value modified successfully
 ```
 
+## Discovery ISO password for debugging
+
+If you need to debug a host, you can setup a default password for `core` 
+by setting `discovery_iso_password` in `vars/all.yml`. The ISO will be modified
+via the [documented assisted-service method](https://github.com/openshift/assisted-service/blob/master/docs/set-discovery-password.md):
+
+```yaml
+discovery_iso_password: <PASS>
+```
+
 # Bastion
 
 ## Accessing services
@@ -292,6 +304,8 @@ Several services are run on the bastion in order to automate the tasks that Jetl
 | Dnsmasq / Coredns                                       | 53                        |
 | Grafana instance for hypervisor monitoring              | 3000                      |
 | Prometheus server for hypervisor monitoring             | 9090                      |
+| RustFS S3 API (When `setup_bastion_object_store=true`)         | 9000                      |
+| RustFS web console (When `setup_bastion_object_store=true`)    | 9001                      |
 
 Example accessing the bastion registry and listing repositories:
 ```console
@@ -337,7 +351,7 @@ If you are planning a redeploy with new versions and new container images it may
 On the bastion machine:
 
 ```console
-(.ansible) [root@<bastion> jetlag]# cd /opt/registry
+(.ansible) [root@<bastion> jetlag]# cd /opt/jetlag/registry
 (.ansible) [root@<bastion> registry]#
 (.ansible) [root@<bastion> registry]# ls -lah
 total 12K
@@ -457,6 +471,54 @@ additional container images from its local disconnected registry. Some machines 
 lab have been found to have root disks which are on the order of only 70G and can fill
 with 1 or 2 OCP releases synced. If the bastion is one of those machines, relocate `/opt`
 to a separate larger disk so the machine does not run out of space on the root disk.
+
+
+## Object Storage
+
+For full object storage setup and usage documentation see [docs/bastion-object-store.md](bastion-object-store.md).
+
+**Check object-store pod and container status:**
+
+```console
+[root@<bastion> ~]# podman pod ps
+[root@<bastion> ~]# podman ps --pod
+```
+
+**Check object-store logs:**
+
+```console
+[root@<bastion> ~]# podman logs object-store
+```
+
+**Object storage web console or S3 API unreachable:**
+
+Verify the object-store pod is running and listening on the expected ports:
+
+```console
+[root@<bastion> ~]# podman pod ps
+[root@<bastion> ~]# ss -tlnp | grep -E '9000|9001'
+```
+
+If the pod is stopped, restart it:
+
+```console
+[root@<bastion> ~]# podman pod start object-store
+```
+
+Or rerun the object-store playbook to fully reconcile the pod and container state:
+
+```console
+[root@<bastion> jetlag]# ansible-playbook -i ansible/inventory/cloud99.local ansible/bastion-object-store.yml
+```
+
+**Clear object storage data between cluster deployments:**
+
+Use the dedicated clean playbook to wipe all stored data and restart object storage with empty buckets:
+
+```console
+[root@<bastion> jetlag]# ansible-playbook -i ansible/inventory/cloud99.local ansible/bastion-object-store-clean.yml
+```
+
 
 # Generic Hardware
 

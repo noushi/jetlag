@@ -27,6 +27,7 @@ setup_performance_dashboards: false
 # Deploy ansible-automation-platform operator
 setup_ansible_automation_platform: false
 aap_channel: stable-2.6-cluster-scoped
+aap_catalogsource: redhat-operators
 aap_enable_overrides: false
 # MAX_CONCURRENT_RECONCILES_ANSIBLEJOB_TOWER_ANSIBLE_COM
 aap_override_max_concurrent_ajt: 10
@@ -36,14 +37,21 @@ aap_override_max_concurrent_awt: 10
 # Deploy openshift-gitops-operator
 setup_openshift_gitops: false
 gitops_channel: stable
+gitops_catalogsource: redhat-operators
+
+# Local Storage Operator (LSO) catalog source
+lso_catalogsource: redhat-operators
+
+# Install Local Storage Operator (LSO) and create LocalVolume resources
+setup_lso: false
 
 # Migrate the ingresscontrollers and/or monitoring components to the master nodes
 # Used during nodedensity testing to ensure these things are more available
 migrate_ingresscontrollers: false
 migrate_monitoring: false
 
-# Apply the cluster-monitoring-config that uses the localstorage class name created either
-# by controlplane_localstorage_configuration or worker_localstorage_configuration
+# Apply the cluster-monitoring-config that uses the localstorage class name
+# created by LSO (requires setup_lso: true)
 apply_cluster_monitoring_config: false
 
 # Prometheus storage settings
@@ -51,11 +59,25 @@ prometheus_retention_period: 15d
 prometheus_storage_class: localstorage-sc
 prometheus_storage_size: 50Gi
 
-# Minio deployment is an object storage pod for use with ACM
-setup_minio: false
-minio_image_tag: RELEASE.2025-09-07T16-13-09Z
-minio_pv_storageclass: localstorage2-sc
+# RustFS deployment is an S3-compatible object storage pod for use with ACM
+# (replaces the archived MinIO project)
+setup_object_store: false
+object_store_image_tag: 1.0.0-rc.6
+object_store_pv_storageclass: localstorage2-sc
 
-# Performance-addon-operator vars_files
-install_performance_addon_operator: false
-ocp_channel: "{{ openshift_version }}"
+# Custom CatalogSources to apply post-install
+# Each entry creates a CatalogSource resource in openshift-marketplace
+# custom_catalogsources:
+# - name: my-custom-catalog
+#   image: quay.io/my-org/my-operator-index:v4.21
+#   displayName: My Custom Catalog
+#   publisher: My Org
+custom_catalogsources: []
+
+# IDMS Configurations for Pre-GA sources
+idms_prega_configuration: "{{ bastion_cluster_config_dir }}/catalogsources/prega-idms.yaml"
+
+# Additional labels to apply to worker nodes post-install (list of key=value or key= strings)
+post_install_node_labels:
+- jetlag=true
+# - cluster.ocs.openshift.io/openshift-storage=

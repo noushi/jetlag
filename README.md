@@ -17,10 +17,8 @@ _**Table of Contents**_
 - [Tested Labs/Hardware](#tested-labshardware)
 - [Prerequisites](#prerequisites)
 - [Cluster Deployment Usage](#cluster-deployment-usage)
-- [Quickstart guides](#quickstart-guides)
-- [Tips and Troubleshooting](#tips-and-troubleshooting)
-- [Disconnected API/Console Access](#disconnected-apiconsole-access)
-- [Jetlag Hypervisors](#jetlag-hypervisors)
+- [Guides](#guides)
+- [Additional Documentation](#additional-documentation)
 <!-- /TOC -->
 
 ## Tested Labs/Hardware
@@ -199,28 +197,32 @@ xxx-h02-000-r650   Ready    control-plane,master,worker   30h   v1.28.6+0fb4726
 xxxxx-xxxxx-xxxxx-xxxxx
 ```
 
-## Quickstart guides
+## Guides
 
-* [Deploy a Multi Node OpenShift cluster via jetlag from a Scale Lab Bastion Machine](docs/deploy-mno-scalelab.md)
-* [Deploy a Multi Node OpenShift cluster via jetlag from a Performance Lab Bastion Machine](docs/deploy-mno-performancelab.md)
-* [Deploy a Multi Node OpenShift cluster on IBMcloud via jetlag](docs/deploy-mno-ibmcloud.md)
-* [Deploy Single Node OpenShift (SNO) clusters via jetlag from a Scale Lab Bastion Machine](docs/deploy-sno-scalelab.md)
-* [Deploy Single Node OpenShift (SNO) clusters via jetlag from a Performance Lab Bastion Machine](docs/deploy-sno-performancelab.md)
-* [Deploy Single Node OpenShift (SNO) clusters via jetlag on IBMcloud ](docs/deploy-sno-ibmcloud.md)
-* [Deploy a VMNO](docs/deploy-vmno.md)
+* [Bastion Setup](docs/bastion-setup.md) - Initial bastion machine preparation (required for all deployments)
+* [Deploy MNO (Scale Lab / Performance Lab)](docs/deploy-mno.md)
+* [Deploy MNO on IBMcloud](docs/deploy-mno-ibmcloud.md)
+* [Deploy SNO (Scale Lab / Performance Lab)](docs/deploy-sno.md)
+* [Deploy SNO on IBMcloud](docs/deploy-sno-ibmcloud.md)
+* [Deploy Hybrid MNO (bare metal + virtual workers)](docs/deploy-mno-hybrid.md)
+* [Deploy VMNO (Virtual Multi Node OpenShift)](docs/deploy-vmno.md)
+* [Deploy MNO - Bring Your Own Lab (BYOL)](docs/deploy-mno-byol.md)
 * [Scale out MNO](docs/scale-out-mno.md)
 * [Scale out SNO](docs/scale-out-sno.md)
 
-## Tips and Troubleshooting
+## Additional Documentation
 
-See [tips-and-vars.md](docs/tips-and-vars.md) in [docs](docs) directory.
-
-See [troubleshooting.md](docs/troubleshooting.md) in [docs](docs) directory.
-
-## Disconnected API/Console Access
-
-See [disconnected-ipv6-cluster-access.md](docs/disconnected-ipv6-cluster-access.md) in [docs](docs) directory.
-
-## Jetlag Hypervisors
-
-See [hypervisors.md](docs/hypervisors.md) in [docs](docs) directory.
+| Document | Description |
+| -------- | ----------- |
+| [Bastion Mirror Registry](docs/bastion-registry.md) | Mirror registry setup, image mirroring, and bandwidth limiting |
+| [Bastion Object Storage (RustFS)](docs/bastion-object-store.md) | Deploying S3-compatible object storage on the bastion |
+| [CI](docs/ci.md) | Continuous integration details |
+| [Custom CatalogSources](docs/custom-catalogsources.md) | Custom operator catalogs and per-operator CatalogSource overrides |
+| [Disconnected API/Console Access](docs/disconnected-ipv6-cluster-access.md) | Accessing disconnected IPv6 clusters |
+| [HV Metrics](docs/hv-metrics.md) | Prometheus and Grafana monitoring for hypervisors and bastion |
+| [Hypervisors](docs/hypervisors.md) | Managing hypervisor nodes and VMs |
+| [Local Storage](docs/local-storage.md) | Configuring the Local Storage Operator (LSO) for control-plane and worker nodes |
+| [OpenShift Data Foundation (ODF)](docs/odf.md) | Installing ODF for Ceph-backed block, file, and object storage |
+| [Tips and Vars](docs/tips-and-vars.md) | Advanced configuration, network overrides, and extra variables |
+| [Troubleshooting](docs/troubleshooting.md) | Common deployment issues and solutions |
+| [VM Bandwidth](docs/vm-bandwidth.md) | Creation-time and dynamic bandwidth limiting for VMs |

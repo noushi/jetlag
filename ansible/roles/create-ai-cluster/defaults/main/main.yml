@@ -22,9 +22,11 @@ override_kni_infra_haproxy: false
 # haproxy templatized config file with one with greater max connections (Original default 20000)
 openshift_kni_infra_haproxy_maxconn: 40000
 
-# SNO Only, Performance-addon-operator vars
-install_performance_addon_operator: false
+# SNO Only
 reserved_cpus: 0-1,32-33
 
 # SNO Only
 du_profile: false
+
+# SNO public VLAN ingress IP offset (set to 0 to disable secondary IP)
+sno_pub_vlan_ingress_ip_offset: 4

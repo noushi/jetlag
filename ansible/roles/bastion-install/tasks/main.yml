@@ -61,8 +61,8 @@
 
 - name: Red Hat lab bastion tasks
   when:
-    - lab in rh_labs
-    - 'not lab == "byol"'
+  - lab in rh_labs
+  - 'not lab == "byol"'
   block:
   - name: Check if clean lab interfaces tombstone exists
     stat:
@@ -96,7 +96,7 @@
 
   - name: Create ssh key pair
     shell: |
-      ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -C "" -N ""
+      ssh-keygen -q -t rsa -f /root/.ssh/id_rsa -N ""
     when: not ssh_key_result.stat.exists
 
   - name: Setup chronyd
@@ -165,34 +165,34 @@
 
 - name: Supermicro tool tasks
   block:
-    - name: Check if SMCIPMITool tar is downloaded
-      stat:
-        path: "{{ playbook_dir }}/smcipmitool.tar.gz"
-      delegate_to: localhost
-      register: stat_smcipmitool
+  - name: Check if SMCIPMITool tar is downloaded
+    stat:
+      path: "{{ playbook_dir }}/smcipmitool.tar.gz"
+    delegate_to: localhost
+    register: stat_smcipmitool
 
-    # This is "proxied", assuming your local laptop can reach the smcipmitool URL
-    # and that the bastion machine may not (Ex you copy the smcipmitool tar file
-    # to a local lab machine)
-    - name: Get SMCIPMITool
-      get_url:
-        validate_certs: false
-        force: true
-        url: "{{ smcipmitool_url }}"
-        dest: "{{ playbook_dir }}/smcipmitool.tar.gz"
-      delegate_to: localhost
-      when: not stat_smcipmitool.stat.exists
+  # This is "proxied", assuming your local laptop can reach the smcipmitool URL
+  # and that the bastion machine may not (Ex you copy the smcipmitool tar file
+  # to a local lab machine)
+  - name: Get SMCIPMITool
+    get_url:
+      validate_certs: false
+      force: true
+      url: "{{ smcipmitool_url }}"
+      dest: "{{ playbook_dir }}/smcipmitool.tar.gz"
+    delegate_to: localhost
+    when: not stat_smcipmitool.stat.exists
 
-    - name: Untar SMCIPMITool
-      unarchive:
-        src: "{{ playbook_dir }}/smcipmitool.tar.gz"
-        dest: /usr/local/bin
-        mode: 0700
-        extra_opts:
-        - --strip-components=1
+  - name: Untar SMCIPMITool
+    unarchive:
+      src: "{{ playbook_dir }}/smcipmitool.tar.gz"
+      dest: /usr/local/bin
+      mode: 0700
+      extra_opts:
+      - --strip-components=1
   when: supermicro_nodes | default(true)
 
-- name: Get CoreDNS, OpenShift clients, opm, kube-burner, kube-burner-ocp, grpcurl, minio client, and yq
+- name: Get CoreDNS, OpenShift clients, opm, kube-burner, kube-burner-ocp, grpcurl, rc (S3 client), and yq
   get_url:
     validate_certs: false
     url: "{{ item.url }}"
@@ -211,9 +211,8 @@
     dest: "{{ bastion_cluster_config_dir }}/kube-burner-ocp-linux.tar.gz"
   - url: "{{ grpcurl_url }}"
     dest: "{{ bastion_cluster_config_dir }}/grpcurl-linux.tar.gz"
-  - url: "{{ minio_client_url }}"
-    dest: "/usr/local/bin/mc"
-    mode: "0700"
+  - url: "{{ object_store_client_url }}"
+    dest: "{{ bastion_cluster_config_dir }}/rustfs-cli-linux-amd64.tar.gz"
   - url: "{{ yq_url }}"
     dest: "{{ bastion_cluster_config_dir }}/yq_linux_amd64.tar.gz"
 
@@ -249,7 +248,7 @@
     dest: "{{ bastion_cluster_config_dir }}/opm-linux.tar.gz"
   - url: "{{ release_urls['ga'] }}/latest/oc-mirror.rhel9.tar.gz"
     dest: "{{ bastion_cluster_config_dir }}/oc-mirror.tar.gz"
-  when: ansible_facts['distribution_major_version'] is version('9', '==')
+  when: ansible_facts['distribution_major_version'] is version('9', '>=')
 
 - name: Untar coredns, opm, kube-burner, kube-burner-ocp and grpcurl client
   unarchive:
@@ -264,6 +263,23 @@
   - "{{ bastion_cluster_config_dir }}/kube-burner-linux.tar.gz"
   - "{{ bastion_cluster_config_dir }}/kube-burner-ocp-linux.tar.gz"
   - "{{ bastion_cluster_config_dir }}/grpcurl-linux.tar.gz"
+  - "{{ bastion_cluster_config_dir }}/rustfs-cli-linux-amd64.tar.gz"
+
+- name: Create coredns.service file
+  copy:
+    dest: /usr/lib/systemd/system/coredns.service
+    content: |
+      [Unit]
+      Description=CoreDNS DNS server
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/local/bin/coredns -conf=/etc/coredns/Corefile
+      Restart=on-failure
+      RestartSec=5s
+
+      [Install]
+      WantedBy=multi-user.target
 
 - name: Symlink RHEL8 opm
   ansible.builtin.file:
@@ -279,7 +295,7 @@
     dest: /usr/local/bin/opm
     state: link
     force: yes
-  when: ansible_facts['distribution_major_version'] is version('9', '==')
+  when: ansible_facts['distribution_major_version'] is version('9', '>=')
 
 - name: Untar yq tool
   unarchive:

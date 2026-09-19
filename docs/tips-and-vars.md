@@ -5,8 +5,8 @@ _**Table of Contents**_
 - [Jetlag Tips and additional Vars](#jetlag-tips-and-additional-vars)
   - [Network interface to vars table](#network-interface-to-vars-table)
   - [Install disk by-path vars](#install-disk-by-path-vars)
-  - [Updating the OCP version](#updating-the-ocp-version)
-  - [Override lab ocpinventory json file](#override-lab-ocpinventory-json-file)
+  - [Updating OCP version](#updating-ocp-version)
+  - [Prow integration](#prow-integration)
   - [Using other network interfaces](#using-other-network-interfaces)
     - [Alternative method](#alternative-method)
     - [Bonding in the scale/perf labs](#bonding-in-the-scaleperf-labs)
@@ -16,8 +16,7 @@ _**Table of Contents**_
     - [SNO DU Profile](#sno-du-profile)
       - [Performance Profile](#performance-profile)
       - [Tuned Performance Patch](#tuned-performance-patch)
-      - [Installing Performance Addon Operator on OCP 4.9 or OCP 4.10](#installing-performance-addon-operator-on-ocp-49-or-ocp-410)
-  - [Add/delete contents to the bastion registry](#adddelete-contents-to-the-bastion-registry)
+      - [Performance Addon Operator deprecation note](#performance-addon-operator-note)
 <!-- /TOC -->
 
 
@@ -162,24 +161,33 @@ nvme0n1                             259:0    0  1.5T  0 disk
 
 You can also identify your machine's specific type by logging into the lab's foreman instance, viewing all your hosts and enabling the "model" field to show which type by host is in your cloud allocation.
 
-## Updating the OCP version
+## Updating OCP version
 
 Set `ocp_build` to `ga` for Generally Available versions, `dev` (early candidate builds)
-of OpenShift, or `ci` to pick a specific nightly build. Empty value results in playbook
-failing with an error message. `ocp_version` is used in conjunction with `ocp_build`.
-Examples of `ocp_version` with `ocp_build: ga` include explicit versions such as
-`4.17.17` or `4.16.35`, additionally `latest-4.17` or `latest-4.16` point to the latest
-z-stream of 4.17 and 4.16 ga builds. Examples of `ocp_version` with `ocp_build: dev`
-are `candidate-4.17`, `candidate-4.16` or `latest` which points to the early candidate
-build of the latest in development release. Checkout https://mirror.openshift.com/pub/openshift-v4/clients/ocp/
+of OpenShift, or `ci` to pick a specific nightly build. An empty value fails validation
+unless `payload_url` is set (e.g. via [Prow integration](#prow-integration), which
+supplies its own release payload and skips `ocp_build`/`ocp_version` checks).
+
+`ocp_version` is used in conjunction with `ocp_build`. Examples of `ocp_version` with
+`ocp_build: ga` include explicit versions such as `4.22.1` or `4.21.7`, additionally
+`latest-4.22` or `latest-4.21` point to the latest z-stream of 4.22 and 4.21 ga builds.
+Examples of `ocp_version` with `ocp_build: dev` are `candidate-4.22`, `candidate-4.21`
+or `latest` which points to the early candidate build of the latest in development
+release. Check out https://mirror.openshift.com/pub/openshift-v4/clients/ocp/
 for a list of available builds for `ga` releases and https://mirror.openshift.com/pub/openshift-v4/clients/ocp-dev-preview/
-for a list of `dev` releases. Nightly `ci` builds are tricky and require determining
-exact builds you can use, an example of `ocp_version` with `ocp_build: ci` is `4.19.0-0.nightly-2025-02-25-035256`, For 'ci' builds check latest nightly from  https://amd64.ocp.releases.ci.openshift.org/.
+for a list of `dev` releases.
+
+Nightly `ci` builds require determining exact builds you can use. An example of
+`ocp_version` with `ocp_build: ci` is `4.19.0-0.nightly-2025-02-25-035256`. For `ci`
+builds check the latest nightly from https://amd64.ocp.releases.ci.openshift.org/.
+
+> [!NOTE]
+> You must add a `registry.ci.openshift.org` token in `pull-secret.txt` for `ci` builds.
 
 
 ```yaml
 ocp_build: "ga"
-ocp_version: "4.17.17"
+ocp_version: "4.22.1"
 ```
 
 Ensure that your pull secrets are still valid.
@@ -206,17 +214,13 @@ Saved credentials for registry.ci.openshift.org into ci_ps.json
 
 You must stop and remove all assisted-installer containers on the bastion with [clean the pods and containers off the bastion](troubleshooting.md#cleaning-all-podscontainers-off-the-bastion-machines) and then rerun the setup-bastion step in order to setup your bastion's assisted-installer to the version you specified before deploying a fresh cluster with that version.
 
-## Override lab ocpinventory json file
+## Prow integration
 
-By default Jetlag selects machines for the roles bastion, control-plane, and worker in that order from the ocpinventory.json file. You can create a new json file with the desired order to match desired roles if the auto selection is incorrect. After creating a new json file, host this where your machine running the playbooks can reach and set the following var such that the modified ocpinventory json file is used, or specify a local path for the file:
+Jetlag can use releases specified by a Prow job configuration. Thanks to this integration, Jetlag can deploy a cluster using the information specified by the `releases` key in the [Prow's job configuration](https://docs.ci.openshift.org/docs/architecture/ci-operator/#testing-with-an-existing-openshift-release).
 
-```yaml
-ocp_inventory_override: http://<http-server>/<inventory-file>.json
+The variable `payload_url` can be set to a specific payload URL. Jetlag will download the OpenShift installer and extract the required tools from this payload, so that neither `ocp_version` nor `ocp_build` variables are required.
 
-# or
-
-ocp_inventory_override: <LOCAL_FILE_PATH>
-```
+Note that Jetlag requires pull-secrets to pull images from the OpenShift build registries used in Prow. They can be extracted by logging into the build cluster and then logging into its image registry with `oc registry login --to=file_to_store_pull_secret`
 
 ## Using other network interfaces
 
@@ -248,7 +252,7 @@ controlplane_network_interface_idx: 2
 In case you are bringing your own lab, set `controlplane_network_interface` to the desired name, eg. `controlplane_network_interface: ens2f0`.
 
 ### Bonding in the scale/perf labs
-To support some particular use cases jetlag implements the option for LACP bonding through the var `enable_bond`.
+Jetlag can configure LACP bonding on the controlplane network via the `enable_bond` variable.
 When enabled, uses the first two network interfaces by default (indices 1 & 2).
 Only works with private networks (`public_vlan: false`) and homogeneous hardware.
 At the moment QUADS does not expose any APIs for this kind of networking setup in the labs, so unless you have discussed your particular use case with the DevOps team and the network setup of your cloud allocation is ready to accommodate this config, please disconsider this option.
@@ -362,7 +366,7 @@ As a result, the following machine configuration files will be added to the clus
 * 99-master-workload-partitioning.yml
 * enable-crun-master.yaml
 
-When deploying DU profile on OCP 4.13 or higher, composable openshift feature will automatically be deployed and as a result, all unnecessary optional Cluster Operators will not be deployed.
+When deploying DU profile on OCP 4.13 or higher, composable OpenShift feature will automatically be deployed and as a result, all unnecessary optional Cluster Operators will not be deployed.
 
 In addition to this, Network Diagnostics will be disabled, monitoring footprint will be reduced, performance-profile and tunedPerformancePatch will be applied post SNO install (based on input vars defined - See **SNO DU Profile** section under [Post Deployment Tasks](#post-deployment-tasks)).
 
@@ -386,6 +390,32 @@ CPU NODE SOCKET CORE L1d:L1i:L2:L3 ONLINE MAXMHZ    MINMHZ
 40  0    0      0    0:0:0:0       yes    3900.0000 800.0000
 41  1    1      1    1:1:1:1       yes    3900.0000 800.0000
 ```
+
+## Cluster Capabilities for MNO/VMNO
+
+By default, MNO and VMNO installs enable the full baseline set of OpenShift cluster capabilities (Insights, marketplace, etc.). Use `mno_capabilities_baseline_set` and `mno_capabilities_additional_enabled` to trim which capabilities get enabled at install time, mirroring the `capabilities` install-config override already used for the SNO DU profile.
+
+Example settings, e.g. to exclude the `Insights` capability entirely (useful for disconnected/air-gapped labs where it can never report and would otherwise show as permanently degraded):
+
+```yaml
+mno_capabilities_baseline_set: None
+mno_capabilities_additional_enabled:
+- baremetal
+- CloudCredential
+- Console
+- CSISnapshot
+- Ingress
+# - Insights # uncomment to re-enable Insights
+- marketplace
+- MachineAPI
+- NodeTuning
+- OperatorLifecycleManager
+- Storage
+```
+
+`baselineCapabilitySet` accepts the same values as install-config.yaml (`None`, `v4.11`..`v4.20`, `vCurrent`). Both vars are unset by default, so leaving them out of `all.yml` keeps the existing default behavior (no `capabilities` override sent to the Assisted Installer).
+
+Note this only applies at cluster install time — a capability already enabled on a running cluster cannot be disabled afterward; see [Red Hat's cluster capabilities documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/installation_overview/cluster-capabilities) for the list of known capabilities per OCP version.
 
 ## Post Deployment Tasks
 
@@ -414,102 +444,7 @@ After performance-profile is applied, the standard TunedPerformancePatch used fo
 This profile will disable chronyd service and enable stalld, change the FIFO priority of ice-ptp processes to 10.
 Further changes applied can be found in the template 'tunedPerformancePatch.yml.j2' under sno-post-cluster-install templates.
 
-#### Installing Performance Addon Operator on OCP 4.9 or OCP 4.10
-
-Performance Addon Operator must be installed for the usage of performance-profile in versions older than OCP 4.11.
-Append these vars to the "Extra vars" section of your `all.yml` or `ibmcloud.yml` to install Performance Addon Operator to allow for low latency node performance tunings on your OCP 4.9 or 4.10 SNO.
-
-```yaml
-install_performance_addon_operator: true
-```
+#### Performance Addon Operator Note
 
 > [!NOTE]
 > The Performance Addon Operator is not available in OCP 4.11 or higher. The PAO code was moved into the Node Tuning Operator in OCP 4.11
-
-## Add/delete contents to the bastion registry
-
-There might be use-cases when you want to add and delete images to/from the bastion registry. For example, for the single stack IPv6 disconnected deployment, the deployment cannot reach quay.io to get the image for your containers.  In this situation, you may use the ICSP (ImageContentSecurityPolicy) mechanism in conjunction with image mirroring. When the deployment requests an image on quay.io, cri-o will intercept the request, redirect and map it to an image on the bastion/mirror registry.
-For example, this policy will map images on quay.io/XXX/client-server to the mirror registry on perf176b, the bastion of this IPv6 disconnected cluster.
-```yaml
-apiVersion: operator.openshift.io/v1alpha1
-kind: ImageContentSourcePolicy
-metadata:
-  name: crucible-repo
-spec:
-  repositoryDigestMirrors:
-  - mirrors:
-    - perf176b.xxx.com:5000/XXX/client-server
-    source: quay.io/XXX/client-server
-```
-
-For on-demand mirroring, the next command run on the bastion will mirror the image from quay.io to perf176b's disconnected registry.
-
-```console
-(.ansible) [root@<bastion> jetlag]# oc image mirror -a /opt/registry/pull-secret-bastion.txt perf176b.xxx.com:5000/XXX/client-server:<tag> --keep-manifest-list --continue-on-error=true
-```
-Once the image has successfully mirrored onto the disconnected registry, your deployment will be able to create the container.
-
-For image deletion, use the Docker V2 REST API to delete the object. Note that the deletion operation argument has to be an image's digest not image's tag. So if you mirrored your image by tag in the previous step, on deletion you have to get its digest first. The following is a convenient script that deletes an image by tag.
-
-```console
-### script
-#!/bin/bash
-registry='[fc00:1000::1]:5000'   <===== IPv6 address and port of perf176b disconnected registry
-name='XXX/client-server'
-auth='-u username:passwd'
-
-function rm_XXX_tag {
- ltag=$1
- curl $auth -X DELETE -sI -k "https://${registry}/v2/${name}/manifests/$(
-   curl $auth -sI -k \
-     -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-      "https://${registry}/v2/${name}/manifests/${ltag}" \
-   | tr -d '\r' | sed -En 's/^Docker-Content-Digest: (.*)/\1/pi'
- )"
-}
-```
-
-**Automating Image Mirroring**
-
-Instead of manually running `oc image mirror` commands, you can automate mirroring generic container images into your bastion registry during the `sync-operator-index` playbook execution.
-
-Simply add the `additional_images` list to your `ansible/vars/sync-operator-index.yml` file:
-
-```yaml
-# Sync extra container images directly (without renaming) into the destination registry.
-additional_images:
-- quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-- quay.io/namespace/image_name:example_tag
-```
-
-> [!NOTE]
-> The `additional_images` parameter mirrors the images exactly as they are named. It does not support renaming the target destination path or tag. Images requiring a rename must still be mirrored manually using `oc image mirror`.
-
-**Automating Image Mirroring with Renaming**
-
-Instead of manually running `oc image mirror` commands, you can automate mirroring generic container images into your bastion registry during the `sync-operator-index` playbook execution. This method uses a separate background task to process and mirror the images, ensuring it fully supports renaming the target destination path.
-
-Simply add the `extra_images` list to your `ansible/vars/sync-operator-index.yml` file:
-
-```yaml
-# Sync extra container images using oc image mirror, which allows renaming.
-extra_images:
-- src: registry.redhat.io/openshift4/ztp-site-generate-rhel8:v4.21.0-2
-  dest: openshift-kni/ztp-site-generator:v4.21.0-2
-- src: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-  dest: minio/minio:RELEASE.2025-09-07T16-13-09Z
-```
-
-**Automating ImageTagMirrorSet (ITMS) Creation**
-
-When working in disconnected environments, some core pods or debugging tools may have external registry paths hardcoded (e.g., `registry.redhat.io/rhel9/support-tools`). To ensure these pods can pull images from your bastion registry without modifying their manifests, Jetlag can automatically create `ImageTagMirrorSet` (ITMS) resources during the post-cluster-install phase.
-
-Simply add the `image_tag_mirrors` list to your `ansible/vars/all.yml` file. This tells OpenShift to intercept requests to the `source` registry and redirect them to your local bastion registry under the `dest` namespace.
-
-```yaml
-# Automatically generate ITMS resources post-install
-# The destination will automatically point to your bastion: <registry_host>:<registry_port>/<dest>
-image_tag_mirrors:
-- source: registry.redhat.io/rhel9
-  dest: rhel9
-```
